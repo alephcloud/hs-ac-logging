@@ -1,0 +1,75 @@
+-- ------------------------------------------------------ --
+-- Copyright © 2014 AlephCloud Systems, Inc.
+-- ------------------------------------------------------ --
+
+Name:                ac-logging
+Version:             0.1
+Synopsis:            AlephCloud Logging Infrastructure
+
+Description:
+    AlephCloud Logging Infrastructure
+
+Homepage:            https://mercurial.alephcloud.com/hg/irene/ac-logging
+License:             AllRightsReserved
+License-file:        LICENSE
+Author:              IreneKnapp
+Maintainer:          iknapp@alephcloud.com
+Copyright:           Copyright (c) 2014 AlephCloud, Inc.
+Category:            AlephCloud
+Build-type:          Simple
+Cabal-version:       >= 1.14.0
+
+source-repository head
+    type:     mercurial
+    location: https://mercurial.alephcloud.com/hg/irene/ac-logging
+
+source-repository this
+    type:     mercurial
+    location: https://mercurial.alephcloud.com/hg/irene/ac-logging
+    tag:      0.1
+
+Library
+    default-language: Haskell98
+    hs-source-dirs: .
+
+    exposed-modules:
+        AlephCloud.Logging
+        AlephCloud.Logging.Configuration
+        
+    other-modules:
+        AlephCloud.Logging.Class
+        AlephCloud.Logging.Internal
+
+    build-depends:
+        array >= 0.4.0.1,
+        base == 4.*,
+        base-unicode-symbols >= 0.2.2.4,
+        blaze-builder >= 0.3.3.2,
+        BoundedChan >= 1.0.1.0,
+        bytestring >= 0.10.4.0,
+        conduit >= 1.0.15.1,
+        data-default >= 0.5.3,
+        directory >= 1.2.0.1,
+        errors >= 1.4.5,
+        http-types >= 0.8.3,
+        lifted-async >= 0.1.1,
+        lifted-base >= 0.2.1.1,
+        monad-control >= 0.3.2.2,
+        mtl >= 2.1.2,
+        regex-tdfa >= 1.2.0,
+        regex-tdfa-text >= 1.0.0.1,
+        safe >= 0.3.3,
+        stm >= 2.4.2,
+        text >= 1.1.0.1,
+        time >= 1.4.0.1,
+        transformers >= 0.3.0.0,
+        transformers-base >= 0.4.1,
+        wai >= 1.4.1,
+        wai-extra >= 1.3.4.7,
+        wai-logger >= 0.3.2
+
+    if !os(mingw32)
+        build-depends:
+            hsyslog >= 1.5
+
+    ghc-options: -Wall -O2
