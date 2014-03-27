@@ -34,10 +34,10 @@ Library
 
     exposed-modules:
         AlephCloud.Logging
+        AlephCloud.Logging.Class
         AlephCloud.Logging.Configuration
         
     other-modules:
-        AlephCloud.Logging.Class
         AlephCloud.Logging.Internal
 
     build-depends:
