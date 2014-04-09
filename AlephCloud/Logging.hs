@@ -163,6 +163,7 @@ class LogQueueC α where
     newLogQueue ∷ (Functor μ, Applicative μ, MonadIO μ) ⇒ Int → μ α
     popLogQueue ∷ (Functor μ, Applicative μ, MonadIO μ) ⇒ α → μ LogMessage
     pushLogQueue ∷ (Functor μ, Applicative μ, MonadIO μ) ⇒ α → LogMessage → μ ()
+    isEmptyLogQueue ∷ (Functor μ, Applicative μ, MonadIO μ) ⇒ α → μ Bool
 
 instance LogQueueC (TBQueue LogMessage) where
     newLogQueue = liftIO ∘ newTBQueueIO
@@ -178,11 +179,17 @@ instance LogQueueC (TBQueue LogMessage) where
       where
         fullQueueWarning now = LogMessage now ["Logger Backend"] Warn
             "Task blocked on full logger backend queue. Something is wrong. Maybe you are using loglevel \"debug\" or \"body\" for production?"
+    isEmptyLogQueue queue = liftIO $ do
+        maybeResult ← atomically $ tryPeekTBQueue queue
+        case maybeResult of
+          Nothing -> return True
+          Just _ -> return False
 
 instance LogQueueC (BC.BoundedChan LogMessage) where
     newLogQueue = liftIO ∘ BC.newBoundedChan
     popLogQueue = liftIO ∘ BC.readChan
     pushLogQueue q = liftIO ∘ BC.writeChan q
+    isEmptyLogQueue = liftIO ∘ BC.isEmptyChan
 
 data FairTBQueue α = FairTBQueue
     { fairTBQueueQueue ∷ !(TBQueue α)
@@ -195,6 +202,16 @@ instance LogQueueC (FairTBQueue LogMessage) where
     pushLogQueue FairTBQueue{..} !msg = liftIO $ do
         withMVar fairTBQueueLock $ \_ → do
             pushLogQueue fairTBQueueQueue msg
+    isEmptyLogQueue FairTBQueue{..} = liftIO $ isEmptyLogQueue fairTBQueueQueue
+
+flushLogQueue :: (Functor μ, Applicative μ, MonadIO μ, LogQueueC α) ⇒ α → μ ()
+flushLogQueue queue = do
+    isEmpty <- isEmptyLogQueue queue
+    if isEmpty
+      then return ()
+      else do
+        liftIO $ threadDelay 100000
+        flushLogQueue queue
 
 -- FIXME
 --
@@ -238,7 +255,12 @@ withMyHandleLoggerCtx ∷ (MonadIO μ, MonadBaseControl IO μ) ⇒ LogLabels →
 withMyHandleLoggerCtx labels level myHandle act = do
     logQueue ← newLogQueue logMessageQueueSize
     let ctx = LoggerCtx logQueue level labels
-    withAsync (runBackend myHandle (loggerLevel ctx) logQueue) $ const (act ctx)  -- withAsync cancels the async for us on termination or error.
+    -- withAsync cancels the async for us on termination or error.
+    withAsync (runBackend myHandle (loggerLevel ctx) logQueue) $ \backend -> do
+        r ← act ctx
+        flushLogQueue logQueue
+        cancel backend
+        return r
     where
     runBackend h _ctxLevel logQueue = liftIO $ case h of
         (RegularHandle handle) → forever $ getMsg handle
@@ -287,8 +309,10 @@ withSyslogLoggerCtx
 withSyslogLoggerCtx serviceName labels level act = do
     logQueue ← newLogQueue logMessageQueueSize
     let ctx = LoggerCtx logQueue level labels
+    -- withAsync cancels the async for us on termination or error.
     withAsync (runBackend (loggerLevel ctx) logQueue) $ \backend → do
         r ← act ctx
+        flushLogQueue logQueue
         cancel backend
         return r
     where

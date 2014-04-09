@@ -3,7 +3,7 @@
 -- ------------------------------------------------------ --
 
 Name:                ac-logging
-Version:             0.1
+Version:             0.2
 Synopsis:            AlephCloud Logging Infrastructure
 
 Description:
@@ -20,13 +20,13 @@ Build-type:          Simple
 Cabal-version:       >= 1.14.0
 
 source-repository head
-    type:     mercurial
-    location: https://mercurial.alephcloud.com/hg/irene/ac-logging
+    type:     git
+    location: https://github.alephcloud.org/iknapp/ac-logging.git
 
 source-repository this
-    type:     mercurial
-    location: https://mercurial.alephcloud.com/hg/irene/ac-logging
-    tag:      0.1
+    type:     git
+    location: https://github.alephcloud.org/iknapp/ac-logging.git
+    tag:      0.2
 
 Library
     default-language: Haskell98
