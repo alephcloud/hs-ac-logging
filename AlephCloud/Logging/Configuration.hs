@@ -28,7 +28,8 @@ data LogLevel = None
               | Info
               | Body
               | Debug
-    deriving (Show, Eq, Ord, Enum, Typeable, Data)
+    deriving (Show, Eq, Ord, Enum, Typeable, Data, Read)
+
 data LogBackend
     = LogSyslogUdp SyslogServiceName Hostname Port
     -- ^ Sent log message to a syslog daemon over UDP
