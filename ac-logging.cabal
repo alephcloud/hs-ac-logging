@@ -47,7 +47,7 @@ Library
         blaze-builder >= 0.3.3.2,
         BoundedChan >= 1.0.1.0,
         bytestring >= 0.10.4.0,
-        conduit >= 1.0.15.1,
+        conduit >= 1.1.0.2,
         data-default >= 0.5.3,
         directory >= 1.2.0.1,
         errors >= 1.4.5,
@@ -65,7 +65,7 @@ Library
         transformers >= 0.3.0.0,
         transformers-base >= 0.4.1,
         wai >= 1.4.1,
-        wai-extra >= 1.3.4.7,
+        wai-extra >= 2.1.1,
         wai-logger >= 0.3.2
 
     if !os(mingw32)
