@@ -73,7 +73,7 @@ import qualified Data.Text.IO as T
 import Data.Time (getCurrentTime, UTCTime)  -- (getZonedTime, ZonedTime)
 
 import qualified Network.HTTP.Types.Status as HTTP
-import qualified Network.Wai as WAI (Response(..), responseStatus, Request(..), responseSource, Middleware)
+import qualified Network.Wai as WAI (responseStatus, Request(..), responseSource, responseToSource, Middleware)
 import Network.Wai.Middleware.RequestLogger (mkRequestLogger, Destination(..), destination, OutputFormat(..), outputFormat, IPAddrSource(..))
 
 import Prelude.Unicode
@@ -103,13 +103,13 @@ logRequest
     ∷ LoggerCtx
     → LogLevel
     → WAI.Middleware
-logRequest ctx level app req@WAI.Request{..}
+logRequest ctx level app req
     | loggerLevel ctx < level = app req
     | otherwise = do
         logIO ctx level $! "|"
-                        ⊕ T.decodeUtf8 requestMethod ⊕ " "
-                        ⊕ T.decodeUtf8 rawPathInfo
-                        ⊕ T.decodeUtf8 rawQueryString
+                        ⊕ T.decodeUtf8 (WAI.requestMethod req) ⊕ " "
+                        ⊕ T.decodeUtf8 (WAI.rawPathInfo req)
+                        ⊕ T.decodeUtf8 (WAI.rawQueryString req)
         response ← app req
         logIO ctx level $! "|" ⊕ tshowStatus (WAI.responseStatus response)
         return response
@@ -124,13 +124,13 @@ logErrResult ctx level app req
     | loggerLevel ctx < level = app req
     | otherwise = do
         response ← app req
-        let (stat, hdrs, src) = WAI.responseSource response
+        let (stat, hdrs, src) = WAI.responseToSource response
         if HTTP.statusIsClientError stat ∨ HTTP.statusIsServerError stat
             then do
-                res' ← src $$ C.consume
+                res' ← src ($$ C.consume)
                 let msg = hideSecrets ∘ T.concat ∘ map (T.decodeUtf8 ∘ unflush) $ res'
                 logIO ctx level $! "Result [" ⊕ tshowStatus stat ⊕ "]: " ⊕ msg
-                return $ WAI.ResponseSource stat hdrs (C.sourceList res')
+                return $ WAI.responseSource stat hdrs (C.sourceList res')
             else return response
     where
     unflush Flush = ""
@@ -141,16 +141,16 @@ logErrResult ctx level app req
 -- mode!
 --
 logRequestBody ∷ LoggerCtx → LogLevel → WAI.Middleware
-logRequestBody ctx level app req@WAI.Request{..}
+logRequestBody ctx level app req
     | loggerLevel ctx < level = app req
     | otherwise = do
         when (level < Body) $ logIO ctx Warn warning
-        body' ← requestBody $$ C.consume
+        body' ← (WAI.requestBody req) $$ C.consume
         let msg = hideSecrets ∘ T.concat ∘ map T.decodeUtf8 $ body'
         logIO ctx level $! "|"
-                        ⊕ T.decodeUtf8 requestMethod ⊕ " "
-                        ⊕ T.decodeUtf8 rawPathInfo
-                        ⊕ T.decodeUtf8 rawQueryString ⊕ "| "
+                        ⊕ T.decodeUtf8 (WAI.requestMethod req) ⊕ " "
+                        ⊕ T.decodeUtf8 (WAI.rawPathInfo req)
+                        ⊕ T.decodeUtf8 (WAI.rawQueryString req) ⊕ "| "
                         ⊕ msg
         app req { WAI.requestBody = C.sourceList body' }
     where
