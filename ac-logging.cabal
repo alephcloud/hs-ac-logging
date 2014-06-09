@@ -9,12 +9,12 @@ Synopsis:            AlephCloud Logging Infrastructure
 Description:
     AlephCloud Logging Infrastructure
 
-Homepage:            https://mercurial.alephcloud.com/hg/irene/ac-logging
+Homepage:            https://github.com/alephcloud/hs-ac-logging 
 License:             AllRightsReserved
 License-file:        LICENSE
-Author:              IreneKnapp
+Author:              Lars Kuhtz <lars@alephcloud.com>, IreneKnapp
 Maintainer:          iknapp@alephcloud.com
-Copyright:           Copyright (c) 2014 AlephCloud, Inc.
+Copyright:           Copyright (c) 2012, 2013, 2014 AlephCloud, Inc.
 Category:            AlephCloud
 Build-type:          Simple
 Cabal-version:       >= 1.14.0
