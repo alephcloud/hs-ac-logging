@@ -9,7 +9,7 @@ Synopsis:            AlephCloud Logging Infrastructure
 Description:
     AlephCloud Logging Infrastructure
 
-Homepage:            https://github.com/alephcloud/hs-ac-logging 
+Homepage:            https://github.com/alephcloud/hs-ac-logging
 License:             AllRightsReserved
 License-file:        LICENSE
 Author:              Lars Kuhtz <lars@alephcloud.com>, IreneKnapp
@@ -36,7 +36,7 @@ Library
         AlephCloud.Logging
         AlephCloud.Logging.Class
         AlephCloud.Logging.Configuration
-        
+
     other-modules:
         AlephCloud.Logging.Internal
 
