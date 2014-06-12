@@ -182,8 +182,8 @@ instance LogQueueC (TBQueue LogMessage) where
     isEmptyLogQueue queue = liftIO $ do
         maybeResult ← atomically $ tryPeekTBQueue queue
         case maybeResult of
-          Nothing -> return True
-          Just _ -> return False
+            Nothing → return True
+            Just _ → return False
 
 instance LogQueueC (BC.BoundedChan LogMessage) where
     newLogQueue = liftIO ∘ BC.newBoundedChan
@@ -204,9 +204,9 @@ instance LogQueueC (FairTBQueue LogMessage) where
             pushLogQueue fairTBQueueQueue msg
     isEmptyLogQueue FairTBQueue{..} = liftIO $ isEmptyLogQueue fairTBQueueQueue
 
-flushLogQueue :: (Functor μ, Applicative μ, MonadIO μ, LogQueueC α) ⇒ α → μ ()
+flushLogQueue ∷ (Functor μ, Applicative μ, MonadIO μ, LogQueueC α) ⇒ α → μ ()
 flushLogQueue queue = do
-    isEmpty <- isEmptyLogQueue queue
+    isEmpty ← isEmptyLogQueue queue
     if isEmpty
       then return ()
       else do
@@ -256,7 +256,7 @@ withMyHandleLoggerCtx labels level myHandle act = do
     logQueue ← newLogQueue logMessageQueueSize
     let ctx = LoggerCtx logQueue level labels
     -- withAsync cancels the async for us on termination or error.
-    withAsync (runBackend myHandle (loggerLevel ctx) logQueue) $ \backend -> do
+    withAsync (runBackend myHandle (loggerLevel ctx) logQueue) $ \backend → do
         r ← act ctx
         flushLogQueue logQueue
         cancel backend
