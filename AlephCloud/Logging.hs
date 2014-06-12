@@ -16,6 +16,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE UndecidableInstances #-} -- MonadBaseControl β (LoggerT μ)
+{-# LANGUAGE LambdaCase #-}
 
 #define POSIX_HOST_OS darwin_HOST_OS==1 || linux_HOST_OS==1
 
@@ -62,9 +63,8 @@ import Control.Monad.Trans.Control
 import Control.Monad.Base
 
 import qualified Data.ByteString.Char8 as B8
-import Data.Conduit (Flush(..), ($$))
-import qualified Data.Conduit.List as C (consume, sourceList)
 import Data.Default (def)
+import Data.IORef
 import Data.Maybe
 import Data.Monoid.Unicode ((⊕))
 import qualified Data.Text as T
@@ -73,7 +73,11 @@ import qualified Data.Text.IO as T
 import Data.Time (getCurrentTime, UTCTime)  -- (getZonedTime, ZonedTime)
 
 import qualified Network.HTTP.Types.Status as HTTP
+#if MIN_VERSION_wai(3,0,0)
+import qualified Network.Wai as WAI (responseStatus, Request(..), responseStream, responseToStream, Middleware)
+#else
 import qualified Network.Wai as WAI (responseStatus, Request(..), responseSource, responseToSource, Middleware)
+#endif
 import Network.Wai.Middleware.RequestLogger (mkRequestLogger, Destination(..), destination, OutputFormat(..), outputFormat, IPAddrSource(..))
 
 import Prelude.Unicode
@@ -99,6 +103,22 @@ logToHandle h = unsafePerformIO $ mkRequestLogger def { outputFormat = Apache Fr
 
 -- | This logs requests and the HTTP status of the result
 --
+#if MIN_VERSION_wai(3,0,0)
+logRequest
+    ∷ LoggerCtx
+    → LogLevel
+    → WAI.Middleware
+logRequest ctx level app req respond
+    | loggerLevel ctx < level = app req respond
+    | otherwise = do
+        logIO ctx level $! "|"
+                        ⊕ T.decodeUtf8 (WAI.requestMethod req) ⊕ " "
+                        ⊕ T.decodeUtf8 (WAI.rawPathInfo req)
+                        ⊕ T.decodeUtf8 (WAI.rawQueryString req)
+        app req $ \response → do
+            logIO ctx level $! "|" ⊕ tshowStatus (WAI.responseStatus response)
+            respond response
+#else
 logRequest
     ∷ LoggerCtx
     → LogLevel
@@ -113,12 +133,30 @@ logRequest ctx level app req
         response ← app req
         logIO ctx level $! "|" ⊕ tshowStatus (WAI.responseStatus response)
         return response
+#endif
 
--- | This logs responses with all 4** and 5** status codes. In order to
--- due so it must consume the response from the pipe and reinject it into
--- the pipe. This is expensive, but happens only for response with the
--- status respective.
+-- | This logs responses with all 4** and 5** status codes. This is expensive
+-- since the whole response is read into memory and subject to garbage
+-- collection. However, this happens only for response with the respective
+-- status
 --
+#if MIN_VERSION_wai(3,0,0)
+logErrResult ∷ LoggerCtx → LogLevel → WAI.Middleware
+logErrResult ctx level app req respond
+    | loggerLevel ctx < level = app req respond
+    | otherwise = app req $ \response → do
+        let (stat, hdrs, streamCb) = WAI.responseToStream response
+        if HTTP.statusIsClientError stat ∨ HTTP.statusIsServerError stat
+            then bracket (newIORef mempty) (readIORef >=> writeLog stat) $ \ref →
+                respond $ WAI.responseStream stat hdrs $ \chunk flush → do
+                    let chunk_ c = modifyIORef' ref (\msg → let x = msg ⊕ c in x `seq` x) >> chunk c
+                    streamCb $ \body →
+                        body chunk_ flush
+            else respond response
+  where
+    builderToText = T.decodeUtf8 ∘ toByteString
+    writeLog stat msg = logIO ctx level $! " Result [" ⊕ tshowStatus stat ⊕ "]: " ⊕ builderToText msg
+#else
 logErrResult ∷ LoggerCtx → LogLevel → WAI.Middleware
 logErrResult ctx level app req
     | loggerLevel ctx < level = app req
@@ -135,11 +173,40 @@ logErrResult ctx level app req
     where
     unflush Flush = ""
     unflush (Chunk a) = toByteString a
+#endif
 
--- | This is expensive, since it consumes all requests from the stream
--- and reinjects them back into the stream. Use this only in Debugging
--- mode!
+-- | This is expensive since the whole request is read into memory and subject
+-- to garbage collection. Use this only in Debugging mode!
 --
+#if MIN_VERSION_wai(3,0,0)
+logRequestBody ∷ LoggerCtx → LogLevel → WAI.Middleware
+logRequestBody ctx level app req respond
+    | loggerLevel ctx < level = app req respond
+    | otherwise = bracket initialize finalize $ \ref → do
+        when (level < Body) $ logIO ctx Warn warning
+        let bodyCb_ = WAI.requestBody req >>= appendLog ref
+        app req { WAI.requestBody = bodyCb_ } respond
+  where
+    appendLog ref "" = do
+        msg ← atomicModifyIORef' ref $ \(_,msg) → ((True,mempty), msg)
+        logIO ctx level $! hideSecrets ∘ T.decodeUtf8 $ "|"
+            ⊕ WAI.requestMethod req ⊕ " "
+            ⊕ WAI.rawPathInfo req
+            ⊕ WAI.rawQueryString req ⊕ "| "
+            ⊕ msg
+        return ""
+    appendLog ref b = do
+        modifyIORef' ref $ \(_,msg) → (False, let x = msg ⊕ b in x `seq` x)
+        return b
+    initialize = newIORef (False, mempty)
+    finalize ref = readIORef ref >>= \case
+        (False, _) → do
+            let rest = WAI.requestBody req >>= appendLog ref >>= \x → when (x ≠ "") rest
+            rest
+        (True, _) → return ()
+
+    warning = "Logging all request bodies is expensive. Using the request logger with an log-level other than body is strongly discouraged."
+#else
 logRequestBody ∷ LoggerCtx → LogLevel → WAI.Middleware
 logRequestBody ctx level app req
     | loggerLevel ctx < level = app req
@@ -155,6 +222,7 @@ logRequestBody ctx level app req
         app req { WAI.requestBody = C.sourceList body' }
     where
     warning = "Logging all request bodies is expensive. Using the request logger with an log-level other than body is strongly discouraged."
+#endif
 
 -- -------------------------------------------------------------------------- --
 -- Logger Backend
