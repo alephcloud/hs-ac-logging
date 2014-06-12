@@ -63,8 +63,14 @@ import Control.Monad.Trans.Control
 import Control.Monad.Base
 
 import qualified Data.ByteString.Char8 as B8
+#if ! MIN_VERSION_wai(3,0,0)
+import Data.Conduit (Flush(..), ($$))
+import qualified Data.Conduit.List as C (consume, sourceList)
+#endif
 import Data.Default (def)
+#if MIN_VERSION_wai(3,0,0)
 import Data.IORef
+#endif
 import Data.Maybe
 import Data.Monoid.Unicode ((⊕))
 import qualified Data.Text as T
